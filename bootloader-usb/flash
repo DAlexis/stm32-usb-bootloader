@@ -1,0 +1,10 @@
+#!/bin/bash
+
+dir="Debug"
+
+if [ "$1" == "release" ];
+then
+    dir="Release"
+fi
+
+st-flash write $dir/bootloader-usb.bin 0x8000000 

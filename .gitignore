@@ -30,3 +30,7 @@
 
 # Debug files
 *.dSYM/
+
+# Directories
+bootloader-usb/build
+eclipse-workspace

@@ -10,6 +10,8 @@ set(EXE_SOURCES
     Src/isr-vector-stub.c
     Src/bsp_driver_sd.c
     Src/flash.c
+    Src/boot.c
+    Src/state.c
     Src/usb_device.c
     Src/console.c
     Src/cardreader.c

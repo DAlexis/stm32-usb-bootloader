@@ -33,37 +33,21 @@
 /* Includes ------------------------------------------------------------------*/
 #include "console.h"
 #include "cardreader.h"
+#include "boot.h"
+#include "state.h"
 #include "flash.h"
 #include "utils.h"
 #include "fatfs.h"
 #include "usb_device.h"
 
 #include "stm32f1xx_hal.h"
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private variables ---------------------------------------------------------*/
 
 HAL_SD_CardInfoTypedef SDCardInfo;
 extern USBD_HandleTypeDef hUsbDeviceFS;
-/* USER CODE BEGIN PV */
-/* Private variables ---------------------------------------------------------*/
 
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 
-/* USER CODE BEGIN PFP */
-/* Private function prototypes -----------------------------------------------*/
-
-/* USER CODE END PFP */
-
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
 
 int main(void)
 {
@@ -74,9 +58,31 @@ int main(void)
 	// Resetting all pins in case of open gates of mosfets
 	resetAllPins();
 
-	initConsole();
 
-	printf("Starting bootloader...\n");
+	initConsole();
+	printf("Starting bootloader\n");
+
+	// Reading state from MCU flash's last page
+	readState();
+	// If nothing was programmed yet
+	if (state.state == LOADER_SATE_NO_FLASH)
+	{
+		// Infinite cardreader
+		initCardreader();
+		for (;;)
+		{
+			printf("System in USB device mode\n");
+			HAL_Delay(1000);
+		}
+		return 0; // For compiler
+	}
+	// Ok, something was programmed
+	// Enabling FAT FS
+	MX_SDIO_SD_Init();
+	MX_FATFS_Init();
+
+
+
 	//HAL_Delay(3000);
 	// Trying to boot without cardreader or fatfs initialization
 	bootIfReady();
@@ -111,7 +117,8 @@ int main(void)
 	while (1)
 	{
 		printf("Thats fail\n");
-	}}
+	}
+}
 
 /** System Clock Configuration
 */

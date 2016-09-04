@@ -5,6 +5,7 @@
  *      Author: alexey
  */
 
+#include "state.h"
 #include "flash.h"
 #include "fatfs.h"
 #include "console.h"
@@ -16,18 +17,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#define LOADER_SATE_NO_FLASH          0x1234
-#define LOADER_SATE_HAS_FLASH         0x4321
-#define LOADER_SATE_SHOULD_BOOT       0x1111
-#define LOADER_SATE_SHOULD_CHECK      0x2222
-
-extern unsigned int _isr_real;
-extern unsigned int _loader_state_addr;
-extern unsigned int _estack;
-
 void Reset_Handler();
 
-typedef void (*Callable)();
+extern unsigned int _isr_real;
+extern unsigned int _estack;
 
 uint32_t firstPageAddr = 0x8000000;
 uint32_t secondPageAddr = 0x8000000 + FLASH_PAGE_SIZE;
@@ -49,14 +42,7 @@ extern SD_HandleTypeDef hsd;
 const char flashFileName[] = "flash.bin";
 const char hashFileName[] = "flash.ly";
 
-typedef struct {
-	uint32_t state;
-	uint32_t mainProgramStackPointer;
-	uint32_t mainProgramResetHandler;
-	uint32_t hash;
-} LoaderState;
 
-LoaderState state;
 
 // Initial loader state when no real program is flashed yet
 __attribute__ ((section(".loader_state"),used))
@@ -93,34 +79,6 @@ HAL_StatusTypeDef erase(uint32_t from, uint32_t to)
 	printf("Pages from %lX to %lX erased\n", from, to);
 	return res;
 }
-
-void saveState()
-{
-	HAL_FLASH_Unlock();
-	if (HAL_OK != erase((uint32_t) &_loader_state_addr, (uint32_t) &_loader_state_addr))
-	{
-		printf("Error while loader state saving: cannot erase state page. Rebooting...\n");
-		reboot();
-	}
-	//FLASH_PageErase((uint32_t) &_loader_state_addr);
-	for (uint32_t i=0; i < sizeof(LoaderState) / 4; i++)
-	{
-		uint32_t targetAddress = (uint32_t) &_loader_state_addr + 4*i;
-		uint32_t* pWord = ((uint32_t*) &state) + i;
-		if (HAL_OK != HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, targetAddress, *pWord))
-		{
-			printf("Error while loader state saving: cannot program state page. Rebooting...\n");
-			reboot();
-		}
-	}
-	HAL_FLASH_Lock();
-}
-
-void readState()
-{
-	memcpy(&state, &_loader_state_addr, sizeof(LoaderState));
-}
-
 
 FRESULT readNextPage(uint8_t *target, uint32_t *readed)
 {
@@ -160,22 +118,6 @@ void reboot()
 	f_mount(&fatfs, "", 0);
 	deinitConsile();
 	NVIC_SystemReset();
-}
-
-void bootMainProgram()
-{
-	Callable pReset_Handler = (Callable) state.mainProgramResetHandler;
-	printf("Booting at %lX\n", (uint32_t)pReset_Handler);
-	//__disable_irq();
-	deinitConsile();
-	HAL_DeInit();
-	// Disabling SysTick interrupt
-	SysTick->CTRL = 0;
-	moveVectorTable(0x00);
-	// Setting initial value to stack pointer
-	__set_MSP(state.mainProgramStackPointer);
-	// booting really
-	pReset_Handler();
 }
 
 void bootIfReady()

@@ -15,6 +15,7 @@
 void delay();
 uint32_t HashLy(uint32_t hash, const uint8_t * buf, uint32_t size);
 void resetAllPins();
+void deinitAllPins();
 
 void assert_failed(uint8_t* file, uint32_t line);
 void fatal_error(char* what, int errCode, uint8_t* file, uint32_t line);

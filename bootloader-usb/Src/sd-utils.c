@@ -11,7 +11,6 @@
 
 SD_HandleTypeDef hsd;
 
-/* SDIO init function */
 void MX_SDIO_SD_Init(void)
 {
   hsd.Instance = SDIO;

@@ -12,6 +12,7 @@ set(EXE_SOURCES
     Src/flash.c
     Src/boot.c
     Src/state.c
+    Src/filesystem.c
     Src/usb_device.c
     Src/console.c
     Src/cardreader.c

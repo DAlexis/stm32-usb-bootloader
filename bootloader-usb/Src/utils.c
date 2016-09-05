@@ -55,6 +55,19 @@ void resetAllPins()
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_2, GPIO_PIN_RESET);
 }
 
+void deinitAllPins()
+{
+	uint16_t pinMask = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 |
+			GPIO_PIN_4 | GPIO_PIN_5  | GPIO_PIN_6  | GPIO_PIN_7  | GPIO_PIN_8  |
+			GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_13 |
+			GPIO_PIN_14 | GPIO_PIN_15;
+	HAL_GPIO_DeInit(GPIOA, pinMask);
+	pinMask |= GPIO_PIN_11 | GPIO_PIN_12;
+	HAL_GPIO_DeInit(GPIOB, pinMask);
+	HAL_GPIO_DeInit(GPIOC, pinMask);
+	HAL_GPIO_DeInit(GPIOD, GPIO_PIN_2);
+}
+
 /**
    * @brief Reports the name of the source file and the source line number
    * where the assert_param error has occurred.

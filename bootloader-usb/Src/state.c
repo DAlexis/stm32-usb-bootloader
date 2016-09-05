@@ -12,6 +12,16 @@ LoaderState state;
 
 extern unsigned int _loader_state_addr;
 
+// Initial loader state when no real program is flashed yet
+__attribute__ ((section(".loader_state"),used))
+uint32_t loaderStateStub[] =
+{
+		LOADER_SATE_NO_FLASH,
+		0x0,
+		0x0,
+		0x0
+};
+
 void saveState()
 {
 	HAL_FLASH_Unlock();

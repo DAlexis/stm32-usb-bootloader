@@ -42,17 +42,10 @@ extern SD_HandleTypeDef hsd;
 const char flashFileName[] = "flash.bin";
 const char hashFileName[] = "flash.ly";
 
-
-
-// Initial loader state when no real program is flashed yet
-__attribute__ ((section(".loader_state"),used))
-uint32_t loaderStateStub[] =
+uint32_t getMaxFlashImageSize()
 {
-		LOADER_SATE_NO_FLASH,
-		0x0,
-		0x0,
-		0x0
-};
+	return (uint32_t) &_isr_real - firstPageAddr;
+}
 
 void moveVectorTable(uint32_t Offset)
 {
@@ -184,6 +177,29 @@ void rebootToMainCode()
 	state.state = LOADER_SATE_SHOULD_BOOT;
 	saveState();
 	reboot();
+}
+
+uint8_t checkFlashFile(uint32_t* hash)
+{
+	// Testing flash file existance
+	FRESULT res = f_stat(flashFileName, &info);
+	if (res != FR_OK)
+		return FLASH_FILE_NOT_EXISTS;
+
+	// Checking file size
+	if (info.fsize > getMaxFlashImageSize())
+		return FLASH_FILE_TOO_BIG;
+
+	// Reading file with hash
+	uint32_t trueHash = 0;
+	res = f_open(&fil, hashFileName, FA_OPEN_EXISTING | FA_READ);
+	if (res == FR_OK) {
+		UINT readed = 0;
+		f_read(&fil, (void*) &trueHash, sizeof(trueHash), &readed);
+		f_close(&fil);
+	} else {
+		printf("Hash file %s not found, skipping image validation\n", hashFileName);
+	}
 }
 
 void flash()

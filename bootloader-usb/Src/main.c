@@ -33,6 +33,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "console.h"
 #include "cardreader.h"
+#include "filesystem.h"
 #include "boot.h"
 #include "state.h"
 #include "flash.h"
@@ -58,7 +59,6 @@ int main(void)
 	// Resetting all pins in case of open gates of mosfets
 	resetAllPins();
 
-
 	initConsole();
 	printf("Starting bootloader\n");
 
@@ -78,10 +78,16 @@ int main(void)
 	}
 	// Ok, something was programmed
 	// Enabling FAT FS
-	MX_SDIO_SD_Init();
-	MX_FATFS_Init();
+	if (initFilesystem() != FILESYSTEM_INIT_OK)
+	{
+		// Cannot mount SD-card and pick FAT fs for some reason
+		bootMainProgram();
+	}
 
+	// We have properly mounted FAT fs and now we should check hash sum of flash.bin
 
+/////////////////////////
+// Old code
 
 	//HAL_Delay(3000);
 	// Trying to boot without cardreader or fatfs initialization

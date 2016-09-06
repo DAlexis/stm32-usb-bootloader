@@ -106,25 +106,6 @@ HAL_StatusTypeDef flashWrite(uint32_t position, uint8_t *data, uint32_t size)
 	return res;
 }
 
-void reboot()
-{
-	f_mount(&fatfs, "", 0);
-	deinitConsile();
-	NVIC_SystemReset();
-}
-
-void bootIfReady()
-{
-	readState();
-	if (state.state == LOADER_SATE_SHOULD_BOOT) {
-		printf("MCU is flashed, we can boot\n");
-		// Next reboot we must check for updates
-		state.state = LOADER_SATE_SHOULD_CHECK;
-		saveState();
-		bootMainProgram();
-	}
-}
-
 uint32_t calculateFlashHash(size_t size)
 {
 	uint32_t result = 0;
@@ -145,7 +126,7 @@ uint32_t calculateFileHash(FIL* pfil)
 	FRESULT res = f_lseek(pfil, 0);
 	if (FR_OK != res)
 	{
-		printf("Cannot f_lseek(pfil, 0) for hasing: %d\n", res);
+		//printf("Cannot f_lseek(pfil, 0) for hashing: %d\n", res);
 		return 0;
 	}
 	UINT readed = 0;
@@ -157,7 +138,7 @@ uint32_t calculateFileHash(FIL* pfil)
 		res = f_read(pfil, buf, blockSize, &readed);
 		if (FR_OK != res)
 		{
-			printf("Cannot read file to calculate hash: %d\n", res);
+			//printf("Cannot read file to calculate hash: %d\n", res);
 			return 0;
 		}
 		result = HashLy(result, buf, readed);
@@ -166,20 +147,13 @@ uint32_t calculateFileHash(FIL* pfil)
 	res = f_lseek(pfil, 0);
 	if (FR_OK != res)
 	{
-		printf("Cannot f_lseek(fil, 0) after hashing: %d\n", res);
+		//printf("Cannot f_lseek(fil, 0) after hashing: %d\n", res);
 		return 0;
 	}
 	return result;
 }
 
-void rebootToMainCode()
-{
-	state.state = LOADER_SATE_SHOULD_BOOT;
-	saveState();
-	reboot();
-}
-
-uint8_t checkFlashFile(uint32_t* hash)
+HashCheckResult checkFlashFile(uint32_t* hash, uint32_t* trueHash, uint32_t* flashFileSize)
 {
 	// Testing flash file existance
 	FRESULT res = f_stat(flashFileName, &info);
@@ -191,149 +165,91 @@ uint8_t checkFlashFile(uint32_t* hash)
 		return FLASH_FILE_TOO_BIG;
 
 	// Reading file with hash
-	uint32_t trueHash = 0;
+	*trueHash = 0; // keep 0 if we have no hash value
 	res = f_open(&fil, hashFileName, FA_OPEN_EXISTING | FA_READ);
 	if (res == FR_OK) {
 		UINT readed = 0;
-		f_read(&fil, (void*) &trueHash, sizeof(trueHash), &readed);
+		f_read(&fil, (void*) trueHash, sizeof(*trueHash), &readed);
 		f_close(&fil);
-	} else {
-		printf("Hash file %s not found, skipping image validation\n", hashFileName);
+		if (readed != sizeof(*trueHash))
+			*trueHash = 0;
 	}
+
+	res = f_open(&fil, flashFileName, FA_OPEN_EXISTING | FA_READ);
+	if (res != FR_OK)
+		return FLASH_FILE_CANNOT_OPEN;
+
+	*hash = calculateFileHash(&fil);
+	f_close(&fil);
+	if (*hash == 0)
+		return FLASH_FILE_CANNOT_OPEN;
+	if (*hash == *trueHash || *trueHash == 0)
+		return FLASH_FILE_OK;
+	else
+		return FLASH_FILE_INVALID_HASH;
 }
 
-void flash()
+FlashResult flash()
 {
-	MX_SDIO_SD_Init();
-	MX_FATFS_Init();
-	/*
-	HAL_Delay(1000);
-	HAL_FLASH_Unlock();
-	FLASH_EraseInitTypeDef erase;
-	erase.TypeErase = FLASH_TYPEERASE_PAGES;
-	erase.Banks = FLASH_BANK_1;
-	erase.PageAddress = secondPageAddr;
-	erase.NbPages = 1;
-	uint32_t error = 0;
-	HAL_FLASHEx_Erase(&erase, &error);
-	for (uint32_t i=0; i<FLASH_PAGE_SIZE; i+=2)
-		HAL_FLASH_Program(TYPEPROGRAM_HALFWORD, secondPageAddr+i, 0xDE);
-	HAL_FLASH_Lock();*/
+	FRESULT res = f_open(&fil, flashFileName, FA_OPEN_EXISTING | FA_READ);
 
-	FRESULT res = f_mount(&fatfs, "", 1);
 	if (res != FR_OK)
+		return FLASH_RESULT_FILE_ERROR;
+
+	uint32_t position = FLASH_BEGIN + FLASH_PAGE_SIZE;
+	printf("Erasing MCU pages except first...\n");
+	HAL_StatusTypeDef hal_res = HAL_FLASH_Unlock();
+	if (hal_res != HAL_OK)
 	{
-		printf("Cannot mount FS!\n");
-		return;
+		printf("Unlock error: %d\n", res);
+		return FLASH_RESULT_FLASH_ERROR;
 	}
 
-	uint32_t trueHash = 0;
-	res = f_open(&fil, hashFileName, FA_OPEN_EXISTING | FA_READ);
-	if (res == FR_OK) {
-		UINT readed = 0;
-		f_read(&fil, (void*) &trueHash, sizeof(trueHash), &readed);
-		f_close(&fil);
+	if (HAL_OK != erase(secondPageAddr, info.fsize + firstPageAddr))
+	{
+		printf("Error during erasing MCU, rebooting system.\n");
+		return FLASH_RESULT_FLASH_ERROR;
+	}
+
+	if (FR_OK == readNextPage(firstPage, &fistPageLen))
+	{
+		printf("First page of flash readed successfuly\n");
+		// Reading original SP and Reset_Handler
+		state.mainProgramStackPointer = *(uint32_t*)&firstPage[0];
+		state.mainProgramResetHandler = *(uint32_t*)&firstPage[4];
+		// Changing it to bootloader ones
+		*(uint32_t*)&firstPage[0] = (uint32_t) &_estack;
+		*(uint32_t*)&firstPage[4] = (uint32_t) Reset_Handler;
 	} else {
-		printf("Hash file %s not found, skipping image validation\n", hashFileName);
-	}
-
-	uint32_t fileHash = 0;
-	printf("File system mounted successfully\n");
-	res = f_stat(flashFileName, &info);
-
-	if (res == FR_OK)
-	{
-		uint32_t maxSize = (uint32_t) &_isr_real - firstPageAddr;
-		if (info.fsize > maxSize)
-		{
-			printf("Flash image is too large for this MCU. Maximal size is %lu\n", maxSize);
-			return;
-		}
-		res = f_open(&fil, flashFileName, FA_OPEN_EXISTING | FA_READ);
-	}
-	if (res == FR_OK)
-	{
-		printf("Flash image found on sd-card\n");
-		fileHash = calculateFileHash(&fil);
-		printf("Image hash = %lX\n", fileHash);
-		if (fileHash == state.hash)
-		{
-			printf("Firmware is up to date\n");
-			rebootToMainCode();
-		}
-		if (trueHash != 0 && trueHash != fileHash)
-		{
-			printf("Image is inconsistent! May be hash file %s was not updated.\n", hashFileName);
-			rebootToMainCode();
-		}
-
-		uint32_t position = FLASH_BEGIN + FLASH_PAGE_SIZE;
-		printf("Erasing MCU pages except first...\n");
-		HAL_StatusTypeDef res = HAL_FLASH_Unlock();
-		if (res != HAL_OK)
-			printf("Unlock error: %d\n", res);
-
-		if (HAL_OK != erase(secondPageAddr, info.fsize + firstPageAddr))
-		{
-			printf("Error during erasing MCU, rebooting system.\n");
-			reboot();
-		}
-
-		if (FR_OK == readNextPage(firstPage, &fistPageLen))
-		{
-			printf("First page of flash readed successfuly\n");
-			// Reading original SP and Reset_Handler
-			state.mainProgramStackPointer = *(uint32_t*)&firstPage[0];
-			state.mainProgramResetHandler = *(uint32_t*)&firstPage[4];
-			// Changing it to bootloader ones
-			*(uint32_t*)&firstPage[0] = (uint32_t) &_estack;
-			*(uint32_t*)&firstPage[4] = (uint32_t) Reset_Handler;
-		} else {
-			f_close(&fil);
-			return;
-		}
-
-		do {
-			readNextPage(buffer, &bufferLen);
-			if (HAL_OK != flashWrite(position, buffer, bufferLen))
-			{
-				printf("Cannot write flash page at %lX, rebooting system.\n", position);
-				reboot();
-			}
-			position += bufferLen;
-			printf("Page at %lX written\n", position);
-		} while (bufferLen != 0);
 		f_close(&fil);
-
-		printf("Erasing first page...\n");
-		if (HAL_OK != erase(FLASH_BEGIN, FLASH_BEGIN))
-		{
-			printf("Error during erasing first page, rebooting system.\n");
-			reboot();
-		}
-		printf("Writing first page...\n");
-		if (HAL_OK != flashWrite(FLASH_BEGIN, firstPage, fistPageLen))
-		{
-			printf("Cannot write first flash page. Your MCU bricked, reflash bootloader with SWD/JTAG!\n");
-			for (;;) { }
-		}
-
-		printf("First page written\n");
-		HAL_FLASH_Lock();
-		printf("Flash locked\n");
-		// Next reboot we must run program
-		state.state = LOADER_SATE_SHOULD_BOOT;
-		state.hash = fileHash;
-		saveState();
-		printf("State saved\n");
-		reboot();
-	} else {
-		if (state.state == LOADER_SATE_SHOULD_CHECK)
-		{
-			printf("No firmware updates found\n");
-			rebootToMainCode();
-		} else {
-			return;
-		}
+		return FLASH_RESULT_FILE_ERROR;
 	}
+
+	do {
+		readNextPage(buffer, &bufferLen);
+		if (HAL_OK != flashWrite(position, buffer, bufferLen))
+		{
+			printf("Cannot write flash page at %lX, rebooting system.\n", position);
+			return FLASH_RESULT_FLASH_ERROR;
+		}
+		position += bufferLen;
+		printf("Page at %lX written\n", position);
+	} while (bufferLen != 0);
+	f_close(&fil);
+
+	printf("Erasing first page...\n");
+	if (HAL_OK != erase(FLASH_BEGIN, FLASH_BEGIN))
+	{
+		printf("Error during erasing first page, rebooting system.\n");
+		return FLASH_RESULT_FLASH_ERROR;
+	}
+	printf("Writing first page...\n");
+	if (HAL_OK != flashWrite(FLASH_BEGIN, firstPage, fistPageLen))
+	{
+		infiniteMessage("Cannot write first flash page. Your MCU bricked, reflash bootloader with SWD/JTAG!\n");
+	}
+
+	printf("First page written\n");
+	HAL_FLASH_Lock();
+	printf("Flash locked\n");
 }

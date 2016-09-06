@@ -6,6 +6,7 @@
  */
 
 #include "state.h"
+#include "boot.h"
 #include "stm32f1xx_hal.h"
 
 LoaderState state;

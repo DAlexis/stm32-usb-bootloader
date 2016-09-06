@@ -1,10 +1,10 @@
 #!/bin/bash
 
-dir="Debug"
+dir="debug"
 
 if [ "$1" == "release" ];
 then
-    dir="Release"
+    dir="release"
 fi
 
-st-flash write $dir/bootloader-usb.bin 0x8000000 
+st-flash write build/$dir/usb-bootloader.bin 0x8000000 

@@ -12,4 +12,6 @@ void initConsole();
 
 void deinitConsile();
 
+void infiniteMessage(const char* msg);
+
 #endif /* INCLUDE_CONSOLE_H_ */

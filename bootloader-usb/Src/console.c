@@ -29,6 +29,15 @@ void deinitConsile()
 	HAL_UART_DeInit(&huart1);
 }
 
+void infiniteMessage(const char* msg)
+{
+	for (;;)
+	{
+		printf(msg);
+		HAL_Delay(1000);
+	}
+}
+
 ssize_t
 _write (int fd __attribute__((unused)), const char* buf __attribute__((unused)),
 	size_t nbyte __attribute__((unused)))

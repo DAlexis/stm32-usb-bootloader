@@ -10,19 +10,29 @@
 
 #include <stdint.h>
 
-#define FLASH_RESULT_OK          0
-#define FLASH_RESULT_ERROR       1
+typedef enum
+{
+	FLASH_FILE_OK = 0,
+	FLASH_FILE_NOT_EXISTS,
+	FLASH_FILE_CANNOT_OPEN,
+	FLASH_FILE_INVALID_HASH,
+	FLASH_FILE_TOO_BIG
+} HashCheckResult;
 
-#define FLASH_FILE_OK            0
-#define FLASH_FILE_NOT_EXISTS    1
-#define FLASH_FILE_INVALID_HASH  2
-#define FLASH_FILE_TOO_BIG       3
-
-uint8_t checkFlashFile(uint32_t* hash);
-
-void bootIfReady();
-void flash();
+typedef enum
+{
+	FLASH_RESULT_OK = 0,
+	FLASH_RESULT_FILE_ERROR,
+	FLASH_RESULT_FLASH_ERROR
+} FlashResult;
 
 uint32_t getMaxFlashImageSize();
+
+HashCheckResult checkFlashFile(uint32_t* hash, uint32_t* trueHash, uint32_t* flashFileSize);
+
+void bootIfReady();
+FlashResult flash(); ///@todo add callback for progress
+
+
 
 #endif /* INCLUDE_FLASH_H_ */

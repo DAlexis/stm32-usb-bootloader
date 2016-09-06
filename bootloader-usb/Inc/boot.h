@@ -9,6 +9,7 @@
 #define BOOTLOADER_USB_BOOTLOADER_USB_INC_BOOT_H_
 
 void bootMainProgram();
+void reboot();
 
 
 #endif /* BOOTLOADER_USB_BOOTLOADER_USB_INC_BOOT_H_ */

@@ -64,66 +64,74 @@ int main(void)
 
 	// Reading state from MCU flash's last page
 	readState();
-	// If nothing was programmed yet
-	if (state.state == LOADER_SATE_NO_FLASH)
-	{
-		// Infinite cardreader
-		initCardreader();
-		for (;;)
-		{
-			printf("System in USB device mode\n");
-			HAL_Delay(1000);
-		}
-		return 0; // For compiler
-	}
+
 	// Ok, something was programmed
 	// Enabling FAT FS
 	if (initFilesystem() != FILESYSTEM_INIT_OK)
 	{
 		// Cannot mount SD-card and pick FAT fs for some reason
-		bootMainProgram();
+		// If nothing was programmed yet
+		printf("Cannot mount file system or find file with flash\n");
+		if (state.state == LOADER_SATE_NO_FLASH)
+		{
+			// Infinite cardreader
+			initCardreader();
+			infiniteMessage("System in USB device mode\n");
+		} else {
+			printf("Booting...\n");
+			bootMainProgram();
+		}
 	}
 
 	// We have properly mounted FAT fs and now we should check hash sum of flash.bin
-
-/////////////////////////
-// Old code
-
-	//HAL_Delay(3000);
-	// Trying to boot without cardreader or fatfs initialization
-	bootIfReady();
-	// We are here if system is not ready to boot, and it things it should check flash updates
-
-	// We are trying to enable cardreader first
-	printf("Initializing cardreader\n");
-	initCardreader();
-	HAL_Delay(1000);
-	if (0 == isCardreaderActive())
+	uint32_t fileHash, trueHash, size;
+	HashCheckResult hcr = checkFlashFile(&fileHash, &trueHash, &size);
+	switch (hcr)
 	{
-		// If USB not connected for enough time, we disable it
-		printf("PC connection timeout, cardreader deactivation...\n");
-		deinitCardreader();
-
-		flash();
-
-		for (;;)
+	case FLASH_FILE_OK:
+		// Check if no upgrade was provided
+		if (state.hash == fileHash)
 		{
-			printf("Flash image cannot be programmed\n");
-			HAL_Delay(1000);
+			printf("Firmware is up-to-date, nothing to update\n");
+			break;
 		}
-	} else {
-		for (;;)
+		// Here we should flash our MCU
+		FlashResult fr = flash();
+		switch (fr)
 		{
-			printf("System in USB device mode\n");
-			HAL_Delay(1000);
+		case FLASH_RESULT_OK:
+			printf("MCU successfuly programmed\n");
+			break;
+		case FLASH_RESULT_FILE_ERROR:
+			infiniteMessage("Flash error: cannot read file\n");
+			break;
+		case FLASH_RESULT_FLASH_ERROR:
+			infiniteMessage("Flash error: cannot write or erase flash memory. Maybe you MCU is totally broken\n");
+			break;
 		}
-	}
 
-	// We should never reach this point
-	while (1)
-	{
-		printf("Thats fail\n");
+		state.hash = fileHash;
+		state.state = LOADER_SATE_HAS_FLASH;
+		saveState();
+		break;
+	case FLASH_FILE_NOT_EXISTS:
+		printf("Flash file not exists on sd-card\n");
+		break;
+	case FLASH_FILE_CANNOT_OPEN:
+		printf("Cannot read from flash file\n");
+		break;
+	case FLASH_FILE_INVALID_HASH:
+		printf("Flash file hash is invalid: %lu against %lu specified in .ly file\n", fileHash, trueHash);
+		break;
+	case FLASH_FILE_TOO_BIG:
+		printf("Flash file is too big: %lu against %lu available in MCU\n", size, getMaxFlashImageSize());
+		break;
 	}
+	printf("Booting...\n");
+	bootMainProgram();
+
+	infiniteMessage("Unexpected fail\n");
+	return 0;
 }
 
 /** System Clock Configuration

@@ -6,6 +6,7 @@
  */
 
 #include "console.h"
+#include "bootloader-config.h"
 #include "stm32f1xx_hal.h"
 #include <stdio.h>
 
@@ -13,8 +14,9 @@ UART_HandleTypeDef huart1;
 
 void initConsole()
 {
+#ifdef UART_ENABLED
 	huart1.Instance = USART1;
-	huart1.Init.BaudRate = 921600;
+	huart1.Init.BaudRate = UART_BAUDRATE;
 	huart1.Init.WordLength = UART_WORDLENGTH_8B;
 	huart1.Init.StopBits = UART_STOPBITS_1;
 	huart1.Init.Parity = UART_PARITY_NONE;
@@ -22,11 +24,14 @@ void initConsole()
 	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 	huart1.Init.OverSampling = UART_OVERSAMPLING_16;
 	HAL_UART_Init(&huart1);
+#endif
 }
 
 void deinitConsile()
 {
+#ifdef UART_ENABLED
 	HAL_UART_DeInit(&huart1);
+#endif
 }
 
 void infiniteMessage(const char* msg)
@@ -42,7 +47,9 @@ ssize_t
 _write (int fd __attribute__((unused)), const char* buf __attribute__((unused)),
 	size_t nbyte __attribute__((unused)))
 {
+#ifdef UART_ENABLED
 	HAL_UART_Transmit(&huart1, buf, nbyte, 1000);
+#endif
 	return nbyte;
 }
 

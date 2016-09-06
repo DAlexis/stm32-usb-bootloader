@@ -10,8 +10,6 @@
 
 #define LOADER_SATE_NO_FLASH          0x1234
 #define LOADER_SATE_HAS_FLASH         0x4321
-#define LOADER_SATE_SHOULD_BOOT       0x1111
-#define LOADER_SATE_SHOULD_CHECK      0x2222
 
 #include <stdint.h>
 

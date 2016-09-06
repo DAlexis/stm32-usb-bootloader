@@ -39,6 +39,7 @@
 #include "flash.h"
 #include "utils.h"
 #include "fatfs.h"
+#include "bootloader-config.h"
 #include "usb_device.h"
 
 #include "stm32f1xx_hal.h"
@@ -78,10 +79,13 @@ int main(void)
 			initCardreader();
 			infiniteMessage("System in USB device mode\n");
 		} else {
+			temporaryEnableCardreader(USB_WAITING_PERIOD);
 			printf("Booting...\n");
 			bootMainProgram();
 		}
 	}
+
+	temporaryEnableCardreader(USB_WAITING_PERIOD);
 
 	// We have properly mounted FAT fs and now we should check hash sum of flash.bin
 	uint32_t fileHash, trueHash, size;

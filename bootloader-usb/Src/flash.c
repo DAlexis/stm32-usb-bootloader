@@ -10,12 +10,14 @@
 #include "fatfs.h"
 #include "console.h"
 #include "utils.h"
-#include "flash-consts.h"
 #include "sd-utils.h"
+#include "bootloader-config.h"
 #include "stm32f1xx_hal.h"
 
 #include <stdio.h>
 #include <string.h>
+
+#define FLASH_BEGIN               0x8000000
 
 void Reset_Handler();
 
@@ -39,8 +41,8 @@ static FILINFO info;
 
 extern SD_HandleTypeDef hsd;
 
-const char flashFileName[] = "flash.bin";
-const char hashFileName[] = "flash.ly";
+const char flashFileName[] = FIRMWARE_FILE_NAME;
+const char hashFileName[] = FIRMWARE_HASH_FILE_NAME;
 
 uint32_t getMaxFlashImageSize()
 {
@@ -183,7 +185,12 @@ HashCheckResult checkFlashFile(uint32_t* hash, uint32_t* trueHash, uint32_t* fla
 	f_close(&fil);
 	if (*hash == 0)
 		return FLASH_FILE_CANNOT_OPEN;
-	if (*hash == *trueHash || *trueHash == 0)
+
+	if (*hash == *trueHash
+#ifndef HASH_CHECK_IS_MANDATORY
+			|| *trueHash == 0
+#endif
+		)
 		return FLASH_FILE_OK;
 	else
 		return FLASH_FILE_INVALID_HASH;

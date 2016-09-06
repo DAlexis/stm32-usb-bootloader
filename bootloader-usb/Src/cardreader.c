@@ -6,6 +6,7 @@
  */
 
 #include "cardreader.h"
+#include "console.h"
 #include "sd-utils.h"
 #include "bsp_driver_sd.h"
 #include "usb_device.h"
@@ -41,4 +42,18 @@ void deinitCardreader()
 int isCardreaderActive()
 {
 	return USBDeviceActivated;
+}
+
+void temporaryEnableCardreader(uint32_t duration)
+{
+	initCardreader();
+	printf("Cardreader temporary enabled...\n");
+	HAL_Delay(duration);
+	if (isCardreaderActive())
+	{
+		infiniteMessage("System in USB device mode\n");
+	} else {
+		printf("Cardreader stopped\n");
+		deinitCardreader();
+	}
 }
